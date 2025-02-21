@@ -21,7 +21,7 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 def download_song(url_or_query):
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
-        "outtmpl": "/sdcard/Spotify/downloads/%(title)s.%(ext)s",
+        "outtmpl": "/tmp/%(title)s.%(ext)s",
         "quiet": True,
         "noplaylist": False,
         "socket_timeout": 600,
