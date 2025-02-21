@@ -25,7 +25,7 @@ def download_song(url_or_query):
         "quiet": True,
         "noplaylist": False,
         "socket_timeout": 600,
-        "cookiefile": "/tmp/cookies.txt",  # Menggunakan /tmp di Heroku untuk cookies.txt
+        "cookiefile": "/sdcard/Download/cookies.txt",  # Menggunakan /tmp di Heroku untuk cookies.txt
     }
 
     filenames = []
