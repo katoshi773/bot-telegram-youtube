@@ -14,6 +14,9 @@ from io import BytesIO
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Ambil token bot dari environment variable
+TOKEN = os.getenv('TELEGRAM_TOKEN')
+
 # Fungsi untuk mengunduh lagu dari YouTube dalam format M4A
 def download_song(url_or_query):
     ydl_opts = {
@@ -162,7 +165,7 @@ async def send_audio(update: Update, filename, info):
 
 # Fungsi utama untuk menjalankan bot
 def main():
-    TOKEN = "7827807565:AAHBYism574_nNEdSjW7A_ucKlFkQe3Rork"  # Ganti dengan token bot kamu
+    # Ambil token bot dari environment variable
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("Halo! Saya bot downloader YouTube.")))
