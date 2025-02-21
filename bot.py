@@ -21,15 +21,15 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 def download_song(url_or_query):
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
-        "outtmpl": "/tmp/%(title)s.%(ext)s",
+        "outtmpl": "/tmp/%(title)s.%(ext)s",  # Menggunakan folder /tmp di Heroku
         "quiet": True,
         "noplaylist": False,
         "socket_timeout": 600,
-        "cookiefile": "/sdcard/Download/cookies.txt",  # Ganti dengan path ke cookies.txt
+        "cookiefile": "/tmp/cookies.txt",  # Menggunakan /tmp di Heroku untuk cookies.txt
     }
 
     filenames = []
-    
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url_or_query, download=True)
