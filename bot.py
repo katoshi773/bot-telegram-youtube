@@ -17,16 +17,35 @@ logger = logging.getLogger(__name__)
 # Ambil token bot dari environment variable
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
+# Fungsi untuk menyimpan cookies dari environment variable ke file sementara
+def save_cookies_to_file():
+    cookies_content = os.getenv('YOUTUBE_COOKIES')
+    cookies_path = "/tmp/cookies.txt"
+
+    if cookies_content:
+        with open(cookies_path, "w") as f:
+            f.write(cookies_content)
+        logger.info("✅ Cookies berhasil disimpan ke /tmp/cookies.txt")
+    else:
+        logger.warning("⚠️ Environment variable 'YOUTUBE_COOKIES' tidak ditemukan!")
+
+    return cookies_path if cookies_content else None
+
 # Fungsi untuk mengunduh lagu dari YouTube dalam format M4A
 def download_song(url_or_query):
+    cookies_path = save_cookies_to_file()
+
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
-        "outtmpl": "/tmp/%(title)s.%(ext)s",  # Menggunakan folder /tmp di Heroku
+        "outtmpl": "/tmp/%(title)s.%(ext)s",
         "quiet": True,
         "noplaylist": False,
         "socket_timeout": 600,
-        "cookiefile": "/sdcard/Download/cookies.txt",  # Menggunakan /tmp di Heroku untuk cookies.txt
     }
+
+    # Gunakan cookies jika tersedia
+    if cookies_path:
+        ydl_opts["cookiefile"] = cookies_path
 
     filenames = []
 
