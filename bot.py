@@ -4,6 +4,7 @@ import requests
 import asyncio
 import logging
 import re
+import base64
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 from mutagen.mp4 import MP4, MP4Cover
@@ -17,19 +18,24 @@ logger = logging.getLogger(__name__)
 # Ambil token bot dari environment variable
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
-# Fungsi untuk menyimpan cookies dari environment variable ke file sementara
+
+# Fungsi untuk menyimpan cookies dari environment variable (base64) ke file sementara
 def save_cookies_to_file():
-    cookies_content = os.getenv('YOUTUBE_COOKIES')
+    cookies_base64 = os.getenv('YOUTUBE_COOKIES_BASE64')
     cookies_path = "/tmp/cookies.txt"
 
-    if cookies_content:
-        with open(cookies_path, "w") as f:
-            f.write(cookies_content)
-        logger.info("✅ Cookies berhasil disimpan ke /tmp/cookies.txt")
+    if cookies_base64:
+        try:
+            with open(cookies_path, "wb") as f:
+                f.write(base64.b64decode(cookies_base64))
+            logger.info("✅ Cookies berhasil disimpan ke /tmp/cookies.txt")
+            return cookies_path
+        except Exception as e:
+            logger.error(f"❌ Gagal menyimpan cookies: {str(e)}")
     else:
-        logger.warning("⚠️ Environment variable 'YOUTUBE_COOKIES' tidak ditemukan!")
+        logger.warning("⚠️ Environment variable 'YOUTUBE_COOKIES_BASE64' tidak ditemukan!")
+    return None
 
-    return cookies_path if cookies_content else None
 
 # Fungsi untuk mengunduh lagu dari YouTube dalam format M4A
 def download_song(url_or_query):
@@ -44,7 +50,7 @@ def download_song(url_or_query):
     }
 
     # Gunakan cookies jika tersedia
-    if cookies_path:
+    if cookies_path and os.path.exists(cookies_path):
         ydl_opts["cookiefile"] = cookies_path
 
     filenames = []
@@ -66,7 +72,8 @@ def download_song(url_or_query):
 
     return filenames
 
-# Fungsi untuk mendapatkan cover album yang dipotong jadi rasio 1:1 (tanpa resize)
+
+# Fungsi untuk mendapatkan cover album yang dipotong jadi rasio 1:1
 def get_cropped_cover(cover_url):
     response = requests.get(cover_url)
     if response.status_code == 200:
@@ -91,6 +98,7 @@ def get_cropped_cover(cover_url):
 
         return jpeg_buffer.getvalue()
     return None
+
 
 # Fungsi untuk menambahkan metadata dengan format "Artis『Judul』"
 def add_metadata(filename, info):
@@ -125,6 +133,7 @@ def add_metadata(filename, info):
 
     return filename
 
+
 # Fungsi untuk menangani pesan dengan link YouTube
 async def handle_message(update: Update, context: CallbackContext):
     text = update.message.text
@@ -134,6 +143,7 @@ async def handle_message(update: Update, context: CallbackContext):
         asyncio.create_task(process_download(update, text))
     else:
         await update.message.reply_text("⚠️ Kirimkan link lagu dari YouTube.")
+
 
 # Fungsi untuk memproses unduhan tanpa memblokir pengguna lain
 async def process_download(update: Update, url):
@@ -178,14 +188,15 @@ async def process_download(update: Update, url):
                 if os.path.exists(filename):
                     os.remove(filename)
 
+
 # Fungsi untuk mengirim file audio
 async def send_audio(update: Update, filename, info):
     with open(filename, "rb") as audio:
         await update.message.reply_audio(audio=audio, title=info["title"], performer=info["uploader"])
 
+
 # Fungsi utama untuk menjalankan bot
 def main():
-    # Ambil token bot dari environment variable
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("Halo! Saya bot downloader YouTube.")))
@@ -193,6 +204,7 @@ def main():
 
     logger.info("✅ Bot sedang berjalan...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
