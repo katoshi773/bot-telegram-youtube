@@ -11,16 +11,16 @@ from mutagen.mp4 import MP4, MP4Cover
 from PIL import Image
 from io import BytesIO
 
-# Set up logging
+# ======================== LOGGING ======================== #
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ambil token bot dari environment variable
+# ======================== TOKEN ======================== #
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
-
-# Fungsi untuk menyimpan cookies dari environment variable (base64) ke file sementara
+# ======================== COOKIES ======================== #
 def save_cookies_to_file():
+    """Simpan cookies dari environment variable (base64) ke file sementara"""
     cookies_base64 = os.getenv('YOUTUBE_COOKIES_BASE64')
     cookies_path = "/tmp/cookies.txt"
 
@@ -28,38 +28,43 @@ def save_cookies_to_file():
         try:
             with open(cookies_path, "wb") as f:
                 f.write(base64.b64decode(cookies_base64))
-            logger.info("✅ Cookies berhasil disimpan ke /tmp/cookies.txt")
-            return cookies_path
+            if os.path.exists(cookies_path):
+                logger.info("✅ Cookies berhasil disimpan ke /tmp/cookies.txt")
+                return cookies_path
         except Exception as e:
             logger.error(f"❌ Gagal menyimpan cookies: {str(e)}")
     else:
         logger.warning("⚠️ Environment variable 'YOUTUBE_COOKIES_BASE64' tidak ditemukan!")
+
     return None
 
 
-# Fungsi untuk mengunduh lagu dari YouTube dalam format M4A
+# ======================== DOWNLOAD SONG ======================== #
 def download_song(url_or_query):
+    """Download lagu dari YouTube dalam format M4A menggunakan yt-dlp"""
     cookies_path = save_cookies_to_file()
 
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
         "outtmpl": "/tmp/%(title)s.%(ext)s",
-        "quiet": True,
+        "quiet": False,    # Set ke False untuk debugging
         "noplaylist": False,
         "socket_timeout": 600,
     }
 
     # Gunakan cookies jika tersedia
     if cookies_path and os.path.exists(cookies_path):
+        logger.info(f"✅ Menggunakan cookies dari: {cookies_path}")
         ydl_opts["cookiefile"] = cookies_path
+    else:
+        logger.warning("⚠️ Download tanpa cookies!")
 
     filenames = []
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url_or_query, download=True)
         except yt_dlp.utils.DownloadError as e:
-            logger.warning(f"Ignored yt-dlp Error: {str(e)}")
+            logger.warning(f"❌ yt-dlp Error: {str(e)}")
             return []
 
         if "entries" in info:
@@ -73,17 +78,18 @@ def download_song(url_or_query):
     return filenames
 
 
-# Fungsi untuk mendapatkan cover album yang dipotong jadi rasio 1:1
+# ======================== CROP COVER ======================== #
 def get_cropped_cover(cover_url):
+    """Ambil cover album yang dipotong menjadi rasio 1:1"""
     response = requests.get(cover_url)
     if response.status_code == 200:
         img = Image.open(BytesIO(response.content))
 
-        # Konversi WebP ke JPEG jika diperlukan
+        # Konversi WEBP ke JPEG jika perlu
         if img.format == "WEBP":
             img = img.convert("RGB")
 
-        # Crop agar menjadi rasio 1:1 (square)
+        # Crop ke rasio 1:1
         width, height = img.size
         min_dim = min(width, height)
         left = (width - min_dim) // 2
@@ -100,19 +106,20 @@ def get_cropped_cover(cover_url):
     return None
 
 
-# Fungsi untuk menambahkan metadata dengan format "Artis『Judul』"
+# ======================== ADD METADATA ======================== #
 def add_metadata(filename, info):
+    """Tambahkan metadata ke file audio dalam format M4A"""
     title = info.get("title", "Unknown Title")
     artist = info.get("uploader", "Unknown Artist")
 
-    # Jika judul dalam format "Artis『Judul』", pisahkan
+    # Format judul "Artis『Judul』"
     if "『" in title and "』" in title:
         split_title = title.split("『")
         if len(split_title) == 2:
             artist = split_title[0].strip()
             title = split_title[1].replace("』", "").strip()
 
-    # Hapus kata-kata tertentu dari nama artis
+    # Bersihkan nama artis
     artist = re.sub(r"\b(Official|YouTube Channel|VEVO)\b", "", artist, flags=re.IGNORECASE).strip()
 
     album = info.get("album", "Unknown Album")
@@ -121,9 +128,10 @@ def add_metadata(filename, info):
     if os.path.exists(filename):
         audio_file = MP4(filename)
         audio_file.tags["\xa9ART"] = artist  # Artis
-        audio_file.tags["\xa9nam"] = title  # Judul
-        audio_file.tags["\xa9alb"] = album  # Album
+        audio_file.tags["\xa9nam"] = title   # Judul
+        audio_file.tags["\xa9alb"] = album   # Album
 
+        # Tambahkan cover jika tersedia
         if cover_url:
             cover_data = get_cropped_cover(cover_url)
             if cover_data:
@@ -134,8 +142,9 @@ def add_metadata(filename, info):
     return filename
 
 
-# Fungsi untuk menangani pesan dengan link YouTube
+# ======================== TELEGRAM HANDLER ======================== #
 async def handle_message(update: Update, context: CallbackContext):
+    """Handler untuk pesan yang berisi link YouTube"""
     text = update.message.text
 
     if "youtube.com" in text or "youtu.be" in text:
@@ -145,8 +154,8 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ Kirimkan link lagu dari YouTube.")
 
 
-# Fungsi untuk memproses unduhan tanpa memblokir pengguna lain
 async def process_download(update: Update, url):
+    """Proses download lagu tanpa memblokir pengguna lain"""
     files_info = []
 
     try:
@@ -165,7 +174,6 @@ async def process_download(update: Update, url):
     except (asyncio.TimeoutError, Exception) as e:
         error_message = str(e).lower().strip()
 
-        # List error yang akan diabaikan
         ignored_errors = [
             r"unable to rename file",
             r"postprocessing: error opening output files",
@@ -175,11 +183,10 @@ async def process_download(update: Update, url):
             r"socket timeout",
         ]
 
-        # Jika error cocok dengan daftar di atas, hanya log tanpa mengirim ke Telegram
         if any(re.search(err, error_message) for err in ignored_errors):
             logger.warning(f"Ignored Error: {error_message}")
         else:
-            logger.error(f"Terjadi kesalahan: {error_message}")
+            logger.error(f"❌ Terjadi kesalahan: {error_message}")
             await update.message.reply_text(f"❌ Terjadi kesalahan: {error_message}")
 
     finally:
@@ -189,14 +196,15 @@ async def process_download(update: Update, url):
                     os.remove(filename)
 
 
-# Fungsi untuk mengirim file audio
 async def send_audio(update: Update, filename, info):
+    """Kirim file audio ke pengguna Telegram"""
     with open(filename, "rb") as audio:
-        await update.message.reply_audio(audio=audio, title=info["title"], performer=info["uploader"])
+        await update.message.reply_audio(audio=audio, title=info.get("title"), performer=info.get("uploader"))
 
 
-# Fungsi utama untuk menjalankan bot
+# ======================== MAIN ======================== #
 def main():
+    """Fungsi utama untuk menjalankan bot Telegram"""
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("Halo! Saya bot downloader YouTube.")))
