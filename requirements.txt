@@ -1,5 +1,5 @@
-python-telegram-bot==20.3
+python-telegram-bot
 yt-dlp
-mutagen==1.47.0
-pillow==10.2.0
-requests==2.31.0
+mutagen
+pillow
+requests
