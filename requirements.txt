@@ -1,5 +1,5 @@
-python-telegram-bot
-yt-dlp
-requests
-pillow
-mutagen
+python-telegram-bot==20.3
+yt-dlp==2024.02.04
+mutagen==1.47.0
+pillow==10.2.0
+requests==2.31.0
